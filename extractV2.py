@@ -2,63 +2,6 @@ import json
 import aiohttp #replaces the need to import requests, by using async requests
 import asyncio #allows for asyncronous programming, aka running concurrent tasks
 
-# Set json global 
-cities_json = """
-    {
-        "cities": [
-            {
-            "city": "Boston",
-            "state_code": "MA",
-            "country_code": "US"
-            },
-            {
-            "city": "Los Angeles",
-            "state_code": "CA",
-            "country_code": "US"
-            },
-            {
-            "city": "Houston",
-            "state_code": "TX",
-            "country_code": "US"
-            },
-            {
-            "city": "Denver",
-            "state_code": "CO",
-            "country_code": "US"
-            },
-            {
-            "city": "Phoenix",
-            "state_code": "AZ",
-            "country_code": "US"
-            },
-            {
-            "city": "Chicago",
-            "state_code": "IL",
-            "country_code": "US"
-            },
-            {
-            "city": "Miami",
-            "state_code": "FL",
-            "country_code": "US"
-            },
-            {
-            "city": "Seattle",
-            "state_code": "WA",
-            "country_code": "US"
-            },
-            {
-            "city": "Atlanta",
-            "state_code": "GA",
-            "country_code": "US"
-            },
-            {
-            "city": "Minneapolis",
-            "state_code": "MN",
-            "country_code": "US"
-            }
-        ]
-    }
-"""
 
 # Fetch the coordinates
 async def fetch_coordinates(session, city_data, API_key):
@@ -75,6 +18,63 @@ async def fetch_coordinates(session, city_data, API_key):
 # Fetch the weather data
 async def main():
     API_key = "b73f0fb012694f161d60c11ce2174ab9"
+    # Set json global 
+    cities_json = """
+        {
+            "cities": [
+                {
+                "city": "Boston",
+                "state_code": "MA",
+                "country_code": "US"
+                },
+                {
+                "city": "Los Angeles",
+                "state_code": "CA",
+                "country_code": "US"
+                },
+                {
+                "city": "Houston",
+                "state_code": "TX",
+                "country_code": "US"
+                },
+                {
+                "city": "Denver",
+                "state_code": "CO",
+                "country_code": "US"
+                },
+                {
+                "city": "Phoenix",
+                "state_code": "AZ",
+                "country_code": "US"
+                },
+                {
+                "city": "Chicago",
+                "state_code": "IL",
+                "country_code": "US"
+                },
+                {
+                "city": "Miami",
+                "state_code": "FL",
+                "country_code": "US"
+                },
+                {
+                "city": "Seattle",
+                "state_code": "WA",
+                "country_code": "US"
+                },
+                {
+                "city": "Atlanta",
+                "state_code": "GA",
+                "country_code": "US"
+                },
+                {
+                "city": "Minneapolis",
+                "state_code": "MN",
+                "country_code": "US"
+                }
+            ]
+        }
+    """
     cities_dict = json.loads(cities_json)
     cities = cities_dict["cities"]
     async with aiohttp.ClientSession() as session:
