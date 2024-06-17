@@ -97,7 +97,27 @@ async def fetch_pollutant(session, coordinates, API_key):
     # Gather async requests
     async with session.get(url) as response:
         return await response.json()
+
+async def extract(cities):
+    # Personal API Key
+    API_key = "502c479f872645156c5a5f328ad101ff"
     
+    # Async requests - gatherng coordinates
+    async with aiohttp.ClientSession() as session:
+        # Coordinate task
+        coord_tasks = [fetch_coordinates(session, city_data, API_key) for city_data in cities]
+        coord_results = await asyncio.gather(*coord_tasks)
+        
+        # Weather task
+        weather_tasks = [fetch_weather(session, coordinates, API_key) for coordinates in coord_results]
+        weather_data = await asyncio.gather(*weather_tasks)
+        
+        # Pollutant task
+        pollutant_tasks = [fetch_pollutant(session, coordinates, API_key) for coordinates in coord_results]
+        pollutant_data = await asyncio.gather(*pollutant_tasks)
+        
+    return weather_data, pollutant_data
+
 def transform_data(weather_data, pollutant_data, cities):
     # Initialize dataframes
     df_weather = pd.DataFrame(columns=["City", "Time (UTC)", "Temperature (F)", "Weather", "Humidity"])
@@ -132,27 +152,6 @@ def transform_data(weather_data, pollutant_data, cities):
     combined_df = pd.merge(df_weather, df_pollutants, on="City")
     return combined_df
 
-
-async def extract(cities):
-    # Personal API Key
-    API_key = "502c479f872645156c5a5f328ad101ff"
-    
-    # Async requests - gatherng coordinates
-    async with aiohttp.ClientSession() as session:
-        # Coordinate task
-        coord_tasks = [fetch_coordinates(session, city_data, API_key) for city_data in cities]
-        coord_results = await asyncio.gather(*coord_tasks)
-        
-        # Weather task
-        weather_tasks = [fetch_weather(session, coordinates, API_key) for coordinates in coord_results]
-        weather_data = await asyncio.gather(*weather_tasks)
-        
-        # Pollutant task
-        pollutant_tasks = [fetch_pollutant(session, coordinates, API_key) for coordinates in coord_results]
-        pollutant_data = await asyncio.gather(*pollutant_tasks)
-        
-    return weather_data, pollutant_data
-    
 #main
 async def main():
     # Extracts
