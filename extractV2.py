@@ -65,6 +65,7 @@ cities_dict = json.loads(cities_json)
 cities = cities_dict["cities"]
 
 # Fetch the coordinates
+# Using the cities json go through and gather cooordinates based on the citys data
 async def fetch_coordinates(session, city_data, API_key):
     # Set variables
     city = city_data["city"]
@@ -99,28 +100,28 @@ async def fetch_pollutant(session, coordinates, API_key):
         return await response.json()
 
 async def extract(cities):
-    # Personal API Key
+    # Personal API Key //*encapsulate sensitive data for prod*//
     API_key = "502c479f872645156c5a5f328ad101ff"
     
     # Async requests - gatherng coordinates
     async with aiohttp.ClientSession() as session:
-        # Coordinate task
+        # Coordinate task, fetch coordiantes for cities based on city daat
         coord_tasks = [fetch_coordinates(session, city_data, API_key) for city_data in cities]
         coord_results = await asyncio.gather(*coord_tasks)
         
-        # Weather task
+        # Weather task, fetch weather data based on coordinates
         weather_tasks = [fetch_weather(session, coordinates, API_key) for coordinates in coord_results]
         weather_data = await asyncio.gather(*weather_tasks)
         
-        # Pollutant task
+        # Pollutant task, fetch pollutant data based on coordinates
         pollutant_tasks = [fetch_pollutant(session, coordinates, API_key) for coordinates in coord_results]
         pollutant_data = await asyncio.gather(*pollutant_tasks)
-        
+    # Returns weatehr and pollutant data for the given cities in independant json 
     return weather_data, pollutant_data
 
 def transform_data(weather_data, pollutant_data, cities):
-    # Initialize dataframes
-    df_weather = pd.DataFrame(columns=["City", "Time (UTC)", "Temperature (F)", "Weather", "Humidity"])
+    # Initialize seperate dataframes
+    df_weather = pd.DataFrame(columns=["City", "Time (UTC)", "Temperature (F)", "Weather", "Humidity", "Station_ID", "Longitude", "Latitude"])
     df_pollutants = pd.DataFrame(columns=["City", "Carbon Monoxide", "Nitrogen Dioxide", "Ozone", "Sulfur Dioxide", "Particulate Matter", "Ammonia"])
    
     # Iterate through weather json result
@@ -128,6 +129,9 @@ def transform_data(weather_data, pollutant_data, cities):
         # Concat weather data to dataframe
         df_weather = pd.concat([df_weather, pd.DataFrame({
             "City": [data["name"]], 
+            "Station_ID": [data["sys"]["id"]],
+            "Longitude": [data["coord"]["lon"]],
+            "Latitude": [data["coord"]["lat"]],
             "Time (UTC)": [data["dt"]],
             "Temperature (F)": [data["main"]["temp"]],
             "Weather": [data["weather"][0]["main"]],
