@@ -11,52 +11,62 @@ cities_json = """
             {
             "city": "Boston",
             "state_code": "MA",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1001
             },
             {
             "city": "Los Angeles",
             "state_code": "CA",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1002
             },
             {
             "city": "Houston",
             "state_code": "TX",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1003,
             },
             {
             "city": "Denver",
             "state_code": "CO",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1004
             },
             {
             "city": "Phoenix",
             "state_code": "AZ",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1005
             },
             {
             "city": "Chicago",
             "state_code": "IL",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1006
             },
             {
             "city": "Miami",
             "state_code": "FL",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1007
             },
             {
             "city": "Seattle",
             "state_code": "WA",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1008
             },
             {
             "city": "Atlanta",
             "state_code": "GA",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1009
             },
             {
             "city": "Minneapolis",
             "state_code": "MN",
-            "country_code": "US"
+            "country_code": "US",
+            "station_id": 1010
             }
         ]
     }
@@ -121,27 +131,37 @@ async def extract(cities):
 
 def transform_data(weather_data, pollutant_data, cities):
     # Initialize seperate dataframes
-    df_weather = pd.DataFrame(columns=["City", "Time (UTC)", "Temperature (F)", "Weather", "Humidity", "Station_ID", "Longitude", "Latitude"])
-    df_pollutants = pd.DataFrame(columns=["City", "Carbon Monoxide", "Nitrogen Dioxide", "Ozone", "Sulfur Dioxide", "Particulate Matter", "Ammonia"])
+    df_station = pd.DataFrame(columns=["Station_ID", "Longitude", "Latitude", "City", "State", "Country"])
+    df_weather = pd.DataFrame(columns=[ "Temperature_F", "Weather", "Humidity", "Time", "Date"])
+    df_pollutants = pd.DataFrame(columns=["Carbon Monoxide", "Nitrogen Dioxide", "Ozone", "Sulfur Dioxide", "Particulate Matter", "Ammonia"])
    
-    # Iterate through weather json result
-    for data in weather_data:
-        # Concat weather data to dataframe
-        df_weather = pd.concat([df_weather, pd.DataFrame({
-            "City": [data["name"]], 
+    # Load data into the dataframes, both station and weather in one loop 
+    for i, data in enumerate(weather_data):
+        city_info = cities[i]
+        df_station = pd.concat([df_station, pd.DataFrame({
             "Station_ID": [data["sys"]["id"]],
             "Longitude": [data["coord"]["lon"]],
             "Latitude": [data["coord"]["lat"]],
-            "Time (UTC)": [data["dt"]],
-            "Temperature (F)": [data["main"]["temp"]],
+            "City": [data["name"]],
+            "State": [city_info["state_code"]],
+            "Country": [city_info["country_code"]]
+        })], ignore_index = True)
+       
+        datetime_obj = pd.to_datetime(data["dt"], unit='s')
+        time_only = datetime_obj.time()  # Extract time part
+        date_only = datetime_obj.date()  # Extract date part    
+        df_weather = pd.concat([df_weather, pd.DataFrame({
+            "Temperature_F": [data["main"]["temp"]],
             "Weather": [data["weather"][0]["main"]],
-            "Humidity": [data["main"]["humidity"]]
+            "Humidity": [data["main"]["humidity"]],
+            "Time": [time_only],
+            "Date": [date_only]
         })], ignore_index = True)
             
     # Iterate through pollutant json result
     for i, item in enumerate(pollutant_data):
         city_name = cities[i]["city"]
-        # Concat weather data to dataframe
+        # Concat pollutant data to dataframe
         df_pollutants = pd.concat([df_pollutants, pd.DataFrame({
             "City": [city_name],
             "Carbon Monoxide": [item["list"][0]["components"]["co"]],
@@ -152,9 +172,8 @@ def transform_data(weather_data, pollutant_data, cities):
             "Ammonia": [item["list"][0]["components"]["nh3"]]
         })], ignore_index = True)
         
-    # Join the dataframes
-    combined_df = pd.merge(df_weather, df_pollutants, on="City")
-    return combined_df
+    # Return the three dataframes
+    return df_station, df_weather, df_pollutants
 
 #main
 async def main():
@@ -162,10 +181,12 @@ async def main():
     weather_data, pollutant_data = await extract(cities)
     
     # Transform Data
-    combined_df = transform_data(weather_data, pollutant_data, cities)
+    station, weather, pollutants = transform_data(weather_data, pollutant_data, cities)
     
-    # Print the dataframe
-    print(tabulate(combined_df, headers = 'keys', tablefmt = 'psql'))
+    # Print the dataframes
+    print(tabulate(station, headers = 'keys', tablefmt = 'psql'))
+    print(tabulate(weather, headers = 'keys', tablefmt = 'psql'))
+    print(tabulate(pollutants, headers = 'keys', tablefmt = 'psql'))
 
 if __name__ == "__main__":
     asyncio.run(main())
