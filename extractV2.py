@@ -24,7 +24,7 @@ cities_json = """
             "city": "Houston",
             "state_code": "TX",
             "country_code": "US",
-            "station_id": 1003,
+            "station_id": 1003
             },
             {
             "city": "Denver",
@@ -139,7 +139,7 @@ def transform_data(weather_data, pollutant_data, cities):
     for i, data in enumerate(weather_data):
         city_info = cities[i]
         df_station = pd.concat([df_station, pd.DataFrame({
-            "Station_ID": [data["sys"]["id"]],
+            "Station_ID": [city_info["station_id"]],
             "Longitude": [data["coord"]["lon"]],
             "Latitude": [data["coord"]["lat"]],
             "City": [data["name"]],
@@ -159,11 +159,9 @@ def transform_data(weather_data, pollutant_data, cities):
         })], ignore_index = True)
             
     # Iterate through pollutant json result
-    for i, item in enumerate(pollutant_data):
-        city_name = cities[i]["city"]
+    for item in pollutant_data:
         # Concat pollutant data to dataframe
         df_pollutants = pd.concat([df_pollutants, pd.DataFrame({
-            "City": [city_name],
             "Carbon Monoxide": [item["list"][0]["components"]["co"]],
             "Nitrogen Dioxide": [item["list"][0]["components"]["no2"]],
             "Ozone": [item["list"][0]["components"]["o3"]],
