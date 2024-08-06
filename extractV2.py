@@ -132,7 +132,7 @@ async def extract(cities):
 def transform_data(weather_data, pollutant_data, cities):
     # Initialize seperate dataframes
     df_station = pd.DataFrame(columns=["Station_ID", "Longitude", "Latitude", "City", "State", "Country"])
-    df_weather = pd.DataFrame(columns=[ "Temperature_F", "Weather", "Humidity", "Time", "Date"])
+    df_weather = pd.DataFrame(columns=[ "Temperature_F", "Weather", "Humidity", "Time_EST", "Date"])
     df_pollutants = pd.DataFrame(columns=["Carbon Monoxide", "Nitrogen Dioxide", "Ozone", "Sulfur Dioxide", "Particulate Matter", "Ammonia"])
    
     # Load data into the dataframes, both station and weather in one loop 
@@ -147,14 +147,14 @@ def transform_data(weather_data, pollutant_data, cities):
             "Country": [city_info["country_code"]]
         })], ignore_index = True)
        
-        datetime_obj = pd.to_datetime(data["dt"], unit='s')
+        datetime_obj = pd.to_datetime(data["dt"], unit='s').tz_localize('UTC').tz_convert('America/New_York')
         time_only = datetime_obj.time()  # Extract time part
         date_only = datetime_obj.date()  # Extract date part    
         df_weather = pd.concat([df_weather, pd.DataFrame({
             "Temperature_F": [data["main"]["temp"]],
             "Weather": [data["weather"][0]["main"]],
             "Humidity": [data["main"]["humidity"]],
-            "Time": [time_only],
+            "Time_EST": [time_only],
             "Date": [date_only]
         })], ignore_index = True)
             
@@ -175,10 +175,10 @@ def transform_data(weather_data, pollutant_data, cities):
 
 #main
 async def main():
-    # Extracts
+    # Extracts data into two json objects
     weather_data, pollutant_data = await extract(cities)
     
-    # Transform Data
+    # Transform Data from json into three seperate dataframes
     station, weather, pollutants = transform_data(weather_data, pollutant_data, cities)
     
     # Print the dataframes
@@ -186,5 +186,6 @@ async def main():
     print(tabulate(weather, headers = 'keys', tablefmt = 'psql'))
     print(tabulate(pollutants, headers = 'keys', tablefmt = 'psql'))
 
+# runs the main function, uses async due to the extract functions requirements
 if __name__ == "__main__":
     asyncio.run(main())
