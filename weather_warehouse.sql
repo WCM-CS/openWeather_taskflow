@@ -2,7 +2,7 @@ USE WeatherData;
 
 CREATE TABLE Weather (
     Weather_ID INT AUTO_INCREMENT PRIMARY KEY,
-    Temperature_F FLOAT(5, 2),
+    Temperature_F FLOAT,
     Weather VARCHAR(20),
     Humidity INT(3),
     Date DATE,
@@ -11,18 +11,18 @@ CREATE TABLE Weather (
 
 CREATE TABLE Pollutants (
     Pollutant_ID INT AUTO_INCREMENT PRIMARY KEY,
-    Carbon_Monoxide FLOAT(7, 2),
-    Nitrogen_Dioxide FLOAT(6, 2),
-    Ozone FLOAT(6, 2),
-    Sulfur_Dioxide FLOAT(5, 2),
-    Particulate_Matter FLOAT(5, 2),
-    Ammonia FLOAT(5, 2)
+    Carbon_Monoxide FLOAT,
+    Nitrogen_Dioxide FLOAT,
+    Ozone FLOAT,
+    Sulfur_Dioxide FLOAT,
+    Particulate_Matter FLOAT,
+    Ammonia FLOAT
 );
 
 CREATE TABLE Station (
     Station_ID CHAR(4) PRIMARY KEY,
-    Latitude FLOAT(10),
-    Longitude FLOAT(10),
+    Latitude FLOAT,
+    Longitude FLOAT,
     City VARCHAR(15),
     State CHAR(2),
     Country CHAR(2),
