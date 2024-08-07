@@ -1,10 +1,11 @@
 import json 
-import aiohttp #replaces the need to import requests, by using async requests
-import asyncio #allows for asyncronous programming, aka running concurrent tasks
+import aiohttp # Replaces the need to import requests, by using async requests
+import asyncio # Allows for asyncronous programming, aka running concurrent tasks
 import pandas as pd
 from tabulate import tabulate
+import pymysql # Allows connection to mysql db
 
- # Set json globally
+# Set json globally
 cities_json = """
     {
         "cities": [
@@ -133,7 +134,7 @@ def transform_data(weather_data, pollutant_data, cities):
     # Initialize seperate dataframes
     df_station = pd.DataFrame(columns=["Station_ID", "Longitude", "Latitude", "City", "State", "Country"])
     df_weather = pd.DataFrame(columns=[ "Temperature_F", "Weather", "Humidity", "Time_EST", "Date"])
-    df_pollutants = pd.DataFrame(columns=["Carbon Monoxide", "Nitrogen Dioxide", "Ozone", "Sulfur Dioxide", "Particulate Matter", "Ammonia"])
+    df_pollutants = pd.DataFrame(columns=["Carbon_Monoxide", "Nitrogen_Dioxide", "Ozone", "Sulfur_Dioxide", "Particulate_Matter", "Ammonia"])
    
     # Load data into the dataframes, both station and weather in one loop 
     for i, data in enumerate(weather_data):
@@ -162,17 +163,136 @@ def transform_data(weather_data, pollutant_data, cities):
     for item in pollutant_data:
         # Concat pollutant data to dataframe
         df_pollutants = pd.concat([df_pollutants, pd.DataFrame({
-            "Carbon Monoxide": [item["list"][0]["components"]["co"]],
-            "Nitrogen Dioxide": [item["list"][0]["components"]["no2"]],
+            "Carbon_Monoxide": [item["list"][0]["components"]["co"]],
+            "Nitrogen_Dioxide": [item["list"][0]["components"]["no2"]],
             "Ozone": [item["list"][0]["components"]["o3"]],
-            "Sulfur Dioxide": [item["list"][0]["components"]["so2"]],
-            "Particulate Matter": [item["list"][0]["components"]["so2"]],
+            "Sulfur_Dioxide": [item["list"][0]["components"]["so2"]],
+            "Particulate_Matter": [item["list"][0]["components"]["so2"]],
             "Ammonia": [item["list"][0]["components"]["nh3"]]
         })], ignore_index = True)
         
     # Return the three dataframes
     return df_station, df_weather, df_pollutants
 
+# Query for the dimesnion tables primary keys from the most recent load
+def fetch_dim_pks():
+    connection = pymysql.connect(
+        host = "localhost",
+        user = "root",
+        password = "password",
+        database = "WeatherData",
+        cursorclass = pymysql.cursor.DictCursor
+    )
+    
+    # Lists to store dimension tables primary keys
+    weather_primaryKeys = []
+    pollutants_primaryKeys = []
+    
+    try:
+        with connection.cursor() as cursor:
+            # Fetch weather primary keys
+            sql_A = "SELECT * FROM Weather ORDER BY Weather_ID DESC LIMIT 10"
+            cursor.execute(sql_A)
+            weather_primaryKeys = cursor.fetchall()
+            
+            # Fetch polllutants primary keys
+            sql_B = "SELECT * FROM Pollutants ORDER BY Pollutant_ID DESC LIMIT 10"
+            cursor.execute(sql_B)
+            pollutants_primaryKeys = cursor.fetchall()
+            
+    finally:
+        connection.close()
+
+    # Returns the dim tables primary keys reversed since the query was listed in desc order
+    return weather_primaryKeys[::-1], pollutants_primaryKeys[::-1]
+
+# Loads the data from dataframes into the dimesnion tables Weather & Pollutants
+def load_dim__table(df_weather, df_pollutants):
+    connection = pymysql.connect(
+        host = "localhost",
+        user = "root",
+        password = "password",
+        database = "WeatherData",
+        cursorclass = pymysql.cursor.DictCursor
+    )
+    
+    try:
+        with connection.cursor() as cursor:
+            # Load weather data
+            for row in df_weather.itertuples(index=False):
+                sql_weather = """
+                INSERT INTO Weather (Temperature_F, Weather, Humidity, Time_EST, Date)
+                VALUES (%s, %s, %s, %s, %s)
+                """
+                cursor.execute(sql_weather, (
+                    row.Temperature_F,
+                    row.Weather,
+                    row.Humidity,
+                    row.Time_EST,
+                    row.Date
+                ))
+                
+            # Load pollutants data
+            for data in df_pollutants.itertuples(index=False):
+                sql_pollutants = """
+                INSERT INTO Pollutants (Carbon_Monoxide, Nitrogen_Dioxide, Ozone, Sulfur_Dioxide, Particulate_Matter, Ammonia)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(sql_pollutants, (
+                    data.Carbon_Monoxide,
+                    data.Nitrogen_Dioxide,
+                    data.Ozone, 
+                    data.Sulfur_Dioxide,
+                    data.Particulate_Matter,
+                    data.Ammonia
+                ))
+                
+            # Commit modifications to db
+            connection.commit()
+            
+    finally:
+        connection.close()
+    
+    
+def load_fact__table(df_station):
+    connection = pymysql.connect(
+        host = "localhost",
+        user = "root",
+        password = "password",
+        database = "WeatherData",
+        cursorclass = pymysql.cursor.DictCursor
+    )
+    
+    try:
+        with connection.cursor() as cursor:
+            weather_pk, pollutants_pk = fetch_dim_pks()
+            
+            for i, row in enumerate(df_station.intertuples(index=False)):
+                weather_fk = weather_pk[i]
+                pollutants_fk = pollutants_pk[i]
+                
+                # Load stations data
+                sql_stations = """
+                INSERT INTO Station (Station_ID, Longitude, Latitude, City, State, Country, Weather_ID, Pollutant_ID)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(sql_stations, (
+                    row.Stations_ID,
+                    row.Longitude,
+                    row.Latitude,
+                    row.City,
+                    row.State,
+                    row.Country,
+                    weather_fk,
+                    pollutants_fk
+                ))
+            # Commit data to ensure persistence
+            connection.commit()
+            
+    finally:
+        connection.close()
+
+    
 #main
 async def main():
     # Extracts data into two json objects
