@@ -1,4 +1,4 @@
-USE WeatherPollutantWarehouse;
+USE WeatherData;
 
 CREATE TABLE Station (
     Station_ID CHAR(4) PRIMARY KEY,
