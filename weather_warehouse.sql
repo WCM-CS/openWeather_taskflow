@@ -20,7 +20,7 @@ CREATE TABLE Pollutants (
 );
 
 CREATE TABLE Station (
-    Station_ID CHAR(4) PRIMARY KEY,
+    Station_ID CHAR(20) PRIMARY KEY,
     Latitude FLOAT,
     Longitude FLOAT,
     City VARCHAR(15),
@@ -31,3 +31,27 @@ CREATE TABLE Station (
     FOREIGN KEY (Weather_ID) REFERENCES Weather(Weather_ID),
     FOREIGN KEY (Pollutant_ID) REFERENCES Pollutants(Pollutant_ID)
 );
+
+DELIMITER //
+-- create sql trigger for station uuid insertion --
+CREATE TRIGGER before_insert_station
+BEFORE INSERT ON Station
+FOR EACH ROW
+BEGIN
+    DECLARE new_id CHAR(20);
+    DECLARE replica_count INT DEFAULT 0;
+
+-- loop through uuid creation to ensure a unique id at 20 chars--
+    REPEAT 
+        SET new_id = LEFT(REPLACE(UUID(), '-', ''), 20);
+
+        SELECT COUNT(*) INTO replica_count
+        FROM Station
+        WHERE Station_ID = new_id;
+
+    UNTIL replica_count = 0
+    END REPEAT;
+   -- Assign the station id pk value --
+    SET NEW.Station_ID = new_id;
+END//
+DELIMITER ;

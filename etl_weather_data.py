@@ -78,6 +78,7 @@ async def extract(cities):
         # Pollutant task, fetch pollutant data based on coordinates
         pollutant_tasks = [fetch_pollutant(session, coordinates, API_key) for coordinates in coord_results]
         pollutant_data = await asyncio.gather(*pollutant_tasks)
+        
     # Returns weatehr and pollutant data for the given cities in independant json 
     return weather_data, pollutant_data
 
@@ -246,7 +247,6 @@ def load_fact_table(df_station):
     finally:
         connection.close()
 
-    
 #main
 async def main():
     # Extracts data into two json objects
@@ -255,18 +255,11 @@ async def main():
     # Transform Data from json into three seperate dataframes
     station, weather, pollutants = transform_data(weather_data, pollutant_data, cities)
     
-    # Print the dataframes
-    print(tabulate(station, headers = 'keys', tablefmt = 'psql'))
-    print(tabulate(weather, headers = 'keys', tablefmt = 'psql'))
-    print(tabulate(pollutants, headers = 'keys', tablefmt = 'psql'))
-    
-    
     # Load the dimension tables data
     load_dim_tables(weather, pollutants)
     # Load the fact tables data
     load_fact_table(station)
     
-
 # runs the main function, uses async due to the extract functions requirements
 if __name__ == "__main__":
     asyncio.run(main())
