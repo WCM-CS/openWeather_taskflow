@@ -6,7 +6,7 @@ CREATE TABLE Weather (
     Weather VARCHAR(20),
     Humidity INT(3),
     Date DATE,
-    Time TIME
+    Time_EST TIME
 );
 
 CREATE TABLE Pollutants (

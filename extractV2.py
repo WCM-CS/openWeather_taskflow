@@ -4,73 +4,24 @@ import asyncio # Allows for asyncronous programming, aka running concurrent task
 import pandas as pd
 from tabulate import tabulate
 import pymysql # Allows connection to mysql db
+import pymysql.cursors
 
 # Set json globally
 cities_json = """
-    {
-        "cities": [
-            {
-            "city": "Boston",
-            "state_code": "MA",
-            "country_code": "US",
-            "station_id": 1001
-            },
-            {
-            "city": "Los Angeles",
-            "state_code": "CA",
-            "country_code": "US",
-            "station_id": 1002
-            },
-            {
-            "city": "Houston",
-            "state_code": "TX",
-            "country_code": "US",
-            "station_id": 1003
-            },
-            {
-            "city": "Denver",
-            "state_code": "CO",
-            "country_code": "US",
-            "station_id": 1004
-            },
-            {
-            "city": "Phoenix",
-            "state_code": "AZ",
-            "country_code": "US",
-            "station_id": 1005
-            },
-            {
-            "city": "Chicago",
-            "state_code": "IL",
-            "country_code": "US",
-            "station_id": 1006
-            },
-            {
-            "city": "Miami",
-            "state_code": "FL",
-            "country_code": "US",
-            "station_id": 1007
-            },
-            {
-            "city": "Seattle",
-            "state_code": "WA",
-            "country_code": "US",
-            "station_id": 1008
-            },
-            {
-            "city": "Atlanta",
-            "state_code": "GA",
-            "country_code": "US",
-            "station_id": 1009
-            },
-            {
-            "city": "Minneapolis",
-            "state_code": "MN",
-            "country_code": "US",
-            "station_id": 1010
-            }
-        ]
-    }
+{
+    "cities": [
+        {"city": "Boston", "state_code": "MA", "country_code": "US", "station_id": 1001},
+        {"city": "Los Angeles", "state_code": "CA", "country_code": "US", "station_id": 1002},
+        {"city": "Houston", "state_code": "TX", "country_code": "US", "station_id": 1003},
+        {"city": "Denver", "state_code": "CO", "country_code": "US", "station_id": 1004},
+        {"city": "Phoenix", "state_code": "AZ", "country_code": "US", "station_id": 1005},
+        {"city": "Chicago", "state_code": "IL", "country_code": "US", "station_id": 1006},
+        {"city": "Miami", "state_code": "FL", "country_code": "US", "station_id": 1007},
+        {"city": "Seattle", "state_code": "WA", "country_code": "US", "station_id": 1008},
+        {"city": "Atlanta", "state_code": "GA", "country_code": "US", "station_id": 1009},
+        {"city": "Minneapolis", "state_code": "MN", "country_code": "US", "station_id": 1010}
+    ]
+}
 """
 cities_dict = json.loads(cities_json)
 cities = cities_dict["cities"]
@@ -133,7 +84,7 @@ async def extract(cities):
 def transform_data(weather_data, pollutant_data, cities):
     # Initialize seperate dataframes
     df_station = pd.DataFrame(columns=["Station_ID", "Longitude", "Latitude", "City", "State", "Country"])
-    df_weather = pd.DataFrame(columns=[ "Temperature_F", "Weather", "Humidity", "Time_EST", "Date"])
+    df_weather = pd.DataFrame(columns=["Temperature_F", "Weather", "Humidity", "Time_EST", "Date"])
     df_pollutants = pd.DataFrame(columns=["Carbon_Monoxide", "Nitrogen_Dioxide", "Ozone", "Sulfur_Dioxide", "Particulate_Matter", "Ammonia"])
    
     # Load data into the dataframes, both station and weather in one loop 
@@ -181,7 +132,8 @@ def fetch_dim_pks():
         user = "root",
         password = "password",
         database = "WeatherData",
-        cursorclass = pymysql.cursor.DictCursor
+        port=3306,
+        cursorclass = pymysql.cursors.DictCursor
     )
     
     # Lists to store dimension tables primary keys
@@ -207,13 +159,14 @@ def fetch_dim_pks():
     return weather_primaryKeys[::-1], pollutants_primaryKeys[::-1]
 
 # Loads the data from dataframes into the dimesnion tables Weather & Pollutants
-def load_dim__table(df_weather, df_pollutants):
+def load_dim_tables(df_weather, df_pollutants):
     connection = pymysql.connect(
         host = "localhost",
         user = "root",
         password = "password",
         database = "WeatherData",
-        cursorclass = pymysql.cursor.DictCursor
+        port=3306, 
+        cursorclass = pymysql.cursors.DictCursor
     )
     
     try:
@@ -254,22 +207,23 @@ def load_dim__table(df_weather, df_pollutants):
         connection.close()
     
     
-def load_fact__table(df_station):
+def load_fact_table(df_station):
     connection = pymysql.connect(
         host = "localhost",
         user = "root",
         password = "password",
         database = "WeatherData",
-        cursorclass = pymysql.cursor.DictCursor
+        port=3306, 
+        cursorclass = pymysql.cursors.DictCursor
     )
     
     try:
         with connection.cursor() as cursor:
             weather_pk, pollutants_pk = fetch_dim_pks()
             
-            for i, row in enumerate(df_station.intertuples(index=False)):
-                weather_fk = weather_pk[i]
-                pollutants_fk = pollutants_pk[i]
+            for i, row in enumerate(df_station.itertuples(index=False)):
+                weather_fk = weather_pk[i]['Weather_ID']
+                pollutants_fk = pollutants_pk[i]['Pollutant_ID']
                 
                 # Load stations data
                 sql_stations = """
@@ -277,7 +231,7 @@ def load_fact__table(df_station):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(sql_stations, (
-                    row.Stations_ID,
+                    row.Station_ID,
                     row.Longitude,
                     row.Latitude,
                     row.City,
@@ -305,6 +259,13 @@ async def main():
     print(tabulate(station, headers = 'keys', tablefmt = 'psql'))
     print(tabulate(weather, headers = 'keys', tablefmt = 'psql'))
     print(tabulate(pollutants, headers = 'keys', tablefmt = 'psql'))
+    
+    
+    # Load the dimension tables data
+    load_dim_tables(weather, pollutants)
+    # Load the fact tables data
+    load_fact_table(station)
+    
 
 # runs the main function, uses async due to the extract functions requirements
 if __name__ == "__main__":
