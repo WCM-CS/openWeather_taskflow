@@ -10,16 +10,16 @@ import pymysql.cursors
 cities_json = """
 {
     "cities": [
-        {"city": "Boston", "state_code": "MA", "country_code": "US", "station_id": 1001},
-        {"city": "Los Angeles", "state_code": "CA", "country_code": "US", "station_id": 1002},
-        {"city": "Houston", "state_code": "TX", "country_code": "US", "station_id": 1003},
-        {"city": "Denver", "state_code": "CO", "country_code": "US", "station_id": 1004},
-        {"city": "Phoenix", "state_code": "AZ", "country_code": "US", "station_id": 1005},
-        {"city": "Chicago", "state_code": "IL", "country_code": "US", "station_id": 1006},
-        {"city": "Miami", "state_code": "FL", "country_code": "US", "station_id": 1007},
-        {"city": "Seattle", "state_code": "WA", "country_code": "US", "station_id": 1008},
-        {"city": "Atlanta", "state_code": "GA", "country_code": "US", "station_id": 1009},
-        {"city": "Minneapolis", "state_code": "MN", "country_code": "US", "station_id": 1010}
+        {"city": "Boston", "state_code": "MA", "country_code": "US"},
+        {"city": "Los Angeles", "state_code": "CA", "country_code": "US"},
+        {"city": "Houston", "state_code": "TX", "country_code": "US"},
+        {"city": "Denver", "state_code": "CO", "country_code": "US"},
+        {"city": "Phoenix", "state_code": "AZ", "country_code": "US"},
+        {"city": "Chicago", "state_code": "IL", "country_code": "US"},
+        {"city": "Miami", "state_code": "FL", "country_code": "US"},
+        {"city": "Seattle", "state_code": "WA", "country_code": "US"},
+        {"city": "Atlanta", "state_code": "GA", "country_code": "US"},
+        {"city": "Minneapolis", "state_code": "MN", "country_code": "US"}
     ]
 }
 """
@@ -83,45 +83,49 @@ async def extract(cities):
     return weather_data, pollutant_data
 
 def transform_data(weather_data, pollutant_data, cities):
-    # Initialize seperate dataframes
-    df_station = pd.DataFrame(columns=["Station_ID", "Longitude", "Latitude", "City", "State", "Country"])
-    df_weather = pd.DataFrame(columns=["Temperature_F", "Weather", "Humidity", "Time_EST", "Date"])
-    df_pollutants = pd.DataFrame(columns=["Carbon_Monoxide", "Nitrogen_Dioxide", "Ozone", "Sulfur_Dioxide", "Particulate_Matter", "Ammonia"])
-   
-    # Load data into the dataframes, both station and weather in one loop 
+    # Initialize seperate lists to store multiple dictionaries
+    station_data_list = []
+    weather_data_list = []
+    pollutants_data_list = []
+    
+    # Load data into the lists for both station and weather in one loop 
     for i, data in enumerate(weather_data):
         city_info = cities[i]
-        df_station = pd.concat([df_station, pd.DataFrame({
-            "Station_ID": [city_info["station_id"]],
-            "Longitude": [data["coord"]["lon"]],
-            "Latitude": [data["coord"]["lat"]],
-            "City": [data["name"]],
-            "State": [city_info["state_code"]],
-            "Country": [city_info["country_code"]]
-        })], ignore_index = True)
-       
+        station_data_list.append({
+            "Longitude": data["coord"]["lon"],
+            "Latitude": data["coord"]["lat"],
+            "City": data["name"],
+            "State": city_info["state_code"],
+            "Country": city_info["country_code"]
+        })
+        
         datetime_obj = pd.to_datetime(data["dt"], unit='s').tz_localize('UTC').tz_convert('America/New_York')
         time_only = datetime_obj.time()  # Extract time part
         date_only = datetime_obj.date()  # Extract date part    
-        df_weather = pd.concat([df_weather, pd.DataFrame({
-            "Temperature_F": [data["main"]["temp"]],
-            "Weather": [data["weather"][0]["main"]],
-            "Humidity": [data["main"]["humidity"]],
-            "Time_EST": [time_only],
-            "Date": [date_only]
-        })], ignore_index = True)
-            
+        weather_data_list.append({
+            "Temperature_F": data["main"]["temp"],
+            "Weather": data["weather"][0]["main"],
+            "Humidity": data["main"]["humidity"],
+            "Time_EST": time_only,
+            "Date": date_only
+        })
+     
     # Iterate through pollutant json result
     for item in pollutant_data:
-        # Concat pollutant data to dataframe
-        df_pollutants = pd.concat([df_pollutants, pd.DataFrame({
-            "Carbon_Monoxide": [item["list"][0]["components"]["co"]],
-            "Nitrogen_Dioxide": [item["list"][0]["components"]["no2"]],
-            "Ozone": [item["list"][0]["components"]["o3"]],
-            "Sulfur_Dioxide": [item["list"][0]["components"]["so2"]],
-            "Particulate_Matter": [item["list"][0]["components"]["so2"]],
-            "Ammonia": [item["list"][0]["components"]["nh3"]]
-        })], ignore_index = True)
+        # load pollutants data to list
+        pollutants_data_list.append({
+            "Carbon_Monoxide": item["list"][0]["components"]["co"],
+            "Nitrogen_Dioxide": item["list"][0]["components"]["no2"],
+            "Ozone": item["list"][0]["components"]["o3"],
+            "Sulfur_Dioxide": item["list"][0]["components"]["so2"],
+            "Particulate_Matter": item["list"][0]["components"]["pm10"],
+            "Ammonia": item["list"][0]["components"]["nh3"]
+        })
+        
+    # convert the lists storing dictionaries into dataframes
+    df_station = pd.DataFrame(station_data_list)
+    df_weather = pd.DataFrame(weather_data_list)
+    df_pollutants = pd.DataFrame(pollutants_data_list)
         
     # Return the three dataframes
     return df_station, df_weather, df_pollutants
@@ -228,11 +232,10 @@ def load_fact_table(df_station):
                 
                 # Load stations data
                 sql_stations = """
-                INSERT INTO Station (Station_ID, Longitude, Latitude, City, State, Country, Weather_ID, Pollutant_ID)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO Station (Longitude, Latitude, City, State, Country, Weather_ID, Pollutant_ID)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(sql_stations, (
-                    row.Station_ID,
                     row.Longitude,
                     row.Latitude,
                     row.City,
@@ -251,14 +254,19 @@ def load_fact_table(df_station):
 async def main():
     # Extracts data into two json objects
     weather_data, pollutant_data = await extract(cities)
+    print("Extracted Data")
     
     # Transform Data from json into three seperate dataframes
     station, weather, pollutants = transform_data(weather_data, pollutant_data, cities)
+    print("Transformed Data")
     
     # Load the dimension tables data
     load_dim_tables(weather, pollutants)
+    print("Loaded Dimensions Tables")
+    
     # Load the fact tables data
     load_fact_table(station)
+    print("Loaded Fact Tables")
     
 # runs the main function, uses async due to the extract functions requirements
 if __name__ == "__main__":
